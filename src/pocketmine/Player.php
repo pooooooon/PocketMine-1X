@@ -182,6 +182,8 @@ use pocketmine\event\entity\EntityLevelChangeEvent;
 /**NEW */
 use pocketmine\network\protocol\v331\BiomeDefinitionListPacket;
 use pocketmine\network\protocol\v310\AvailableEntityIdentifiersPacket;
+use pocketmine\network\protocol\v392\CreativeItemsListPacket;
+use pocketmine\network\protocol\v120\InventoryContentPacket;
 
 /**
  * Main class that handles networking, recovery, and packet sending to the server part
@@ -423,6 +425,7 @@ class Player extends Human implements CommandSender, InventoryHolder, IPlayer {
 	protected $platformChatId = "";
 	protected $doDaylightCycle = true;
 	private $lastQuickCraftTransactionGroup = [];
+	protected $additionalSkinData = [];
 
 	public function getLeaveMessage(){
 		return "";
@@ -958,6 +961,7 @@ class Player extends Human implements CommandSender, InventoryHolder, IPlayer {
 			return $this->parent->dataPacket($packet);
 		}
 
+		
 		switch($packet->pname()){
 			case 'CONTAINER_SET_CONTENT_PACKET':
 				$winId = $packet->windowid;
@@ -1805,6 +1809,7 @@ class Player extends Human implements CommandSender, InventoryHolder, IPlayer {
 					
 				$this->identityPublicKey = $packet->identityPublicKey;
 				$this->platformChatId = $packet->platformChatId;
+				$this->additionalSkinData = $packet->additionalSkinData;
 				$this->processLogin();
 				//Timings::$timerLoginPacket->stopTiming();
 				break;
@@ -2063,7 +2068,9 @@ class Player extends Human implements CommandSender, InventoryHolder, IPlayer {
 			case 'MOB_ARMOR_EQUIPMENT_PACKET':
 				break;
 			case 'INTERACT_PACKET':
-				if ($packet->action === InteractPacket::ACTION_DAMAGE) {
+				if ($packet->action === InteractPacket::ACTION_OPEN_INVENTORY && $this->getPlayerProtocol() >= ProtocolInfo::PROTOCOL_392) {
+					$this->addWindow($this->getInventory());
+				} elseif ($packet->action === InteractPacket::ACTION_DAMAGE) {
 					$this->attackByTargetId($packet->target);
 				} else {
 					$this->customInteract($packet);
@@ -2654,9 +2661,11 @@ class Player extends Human implements CommandSender, InventoryHolder, IPlayer {
 				break;
 			/** @minProtocol 120 */
 			case 'PLAYER_SKIN_PACKET':
-				if($this->setSkin($packet->newSkinByteData, $packet->newSkinId, $packet->newSkinGeometryName, $packet->newSkinGeometryData, $packet->newCapeByteData, $packet->isPremiumSkin))
+				if ($this->setSkin($packet->newSkinByteData, $packet->newSkinId, $packet->newSkinGeometryName, $packet->newSkinGeometryData, $packet->newCapeByteData, $packet->isPremiumSkin)) {
 					// Send new skin to viewers and to self
+					$this->additionalSkinData = $packet->additionalSkinData;
 					$this->updatePlayerSkin($packet->oldSkinName, $packet->newSkinName);
+				}
 				break;
 
 			/** @minProtocol 120 */
@@ -3379,7 +3388,7 @@ class Player extends Human implements CommandSender, InventoryHolder, IPlayer {
 		}
 		for ($i = 0; $i < $len and $valid; ++$i) {
 			$c = ord($this->username{$i});
-			if (($c >= ord("a") and $c <= ord("z")) or ( $c >= ord("A") and $c <= ord("Z")) or ( $c >= ord("0") and $c <= ord("9")) or $c === ord("_") or $c === ord(" ")
+			if (($c >= ord("a") and $c <= ord("z")) or ( $c >= ord("A") and $c <= ord("Z")) or ( $c >= ord("ก") and $c <= ord("")) or ( $c >= ord("0") and $c <= ord("9")) or $c === ord("_") or $c === ord(" ") or $c === ord("§")
 			) {
 				continue;
 			}
@@ -3540,20 +3549,25 @@ class Player extends Human implements CommandSender, InventoryHolder, IPlayer {
 		}
 
 		$this->server->getLogger()->info(TextFormat::AQUA . $this->username . TextFormat::WHITE . "/" . TextFormat::AQUA . $this->ip . " connected");
-		
-		$slots = [];
-		foreach(Item::getCreativeItems() as $item){
-			$slots[] = clone $item;
-		}
-		Multiversion::sendContainer($this, Protocol120::CONTAINER_ID_CREATIVE, $slots);
 
+		if ($this->getPlayerProtocol() >= Info::PROTOCOL_392) {
+			$pk = new CreativeItemsListPacket();
+			$pk->groups = Item::getCreativeGroups();
+			$pk->items = Item::getCreativeItems();
+			$this->dataPacket($pk);			
+		} else {
+			$slots = [];
+			foreach(Item::getCreativeItems() as $item){
+				$slots[] = clone $item['item'];
+			}
+			Multiversion::sendContainer($this, Protocol120::CONTAINER_ID_CREATIVE, $slots);
+	    }
+		
 		$this->server->sendRecipeList($this);
 
 		$this->sendSelfData();				
 		$this->updateSpeed($this->movementSpeed);
 		$this->sendFullPlayerList();
-//		$this->updateExperience(0, 100);
-//		$this->getInventory()->addItem(Item::get(Item::ENCHANTMENT_TABLE), Item::get(Item::DYE, 4, 64), Item::get(Item::IRON_AXE), Item::get(Item::IRON_SWORD));
 //TODO 370
 		$test = "7a0a000a0d62616d626f6f5f6a756e676c650508646f776e66616c6c6666663f050b74656d70657261747572653333733f000a1362616d626f6f5f6a756e676c655f68696c6c730508646f776e66616c6c6666663f050b74656d70657261747572653333733f000a0562656163680508646f776e66616c6ccdcccc3e050b74656d7065726174757265cdcc4c3f000a0c62697263685f666f726573740508646f776e66616c6c9a99193f050b74656d70657261747572659a99193f000a1262697263685f666f726573745f68696c6c730508646f776e66616c6c9a99193f050b74656d70657261747572659a99193f000a1a62697263685f666f726573745f68696c6c735f6d7574617465640508646f776e66616c6ccdcc4c3f050b74656d70657261747572653333333f000a1462697263685f666f726573745f6d7574617465640508646f776e66616c6ccdcc4c3f050b74656d70657261747572653333333f000a0a636f6c645f62656163680508646f776e66616c6c9a99993e050b74656d7065726174757265cdcc4c3d000a0a636f6c645f6f6365616e0508646f776e66616c6c0000003f050b74656d70657261747572650000003f000a0a636f6c645f74616967610508646f776e66616c6ccdcccc3e050b74656d7065726174757265000000bf000a10636f6c645f74616967615f68696c6c730508646f776e66616c6ccdcccc3e050b74656d7065726174757265000000bf000a12636f6c645f74616967615f6d7574617465640508646f776e66616c6ccdcccc3e050b74656d7065726174757265000000bf000a0f646565705f636f6c645f6f6365616e0508646f776e66616c6c0000003f050b74656d70657261747572650000003f000a11646565705f66726f7a656e5f6f6365616e0508646f776e66616c6c0000003f050b74656d706572617475726500000000000a13646565705f6c756b657761726d5f6f6365616e0508646f776e66616c6c0000003f050b74656d70657261747572650000003f000a0a646565705f6f6365616e0508646f776e66616c6c0000003f050b74656d70657261747572650000003f000a0f646565705f7761726d5f6f6365616e0508646f776e66616c6c0000003f050b74656d70657261747572650000003f000a066465736572740508646f776e66616c6c00000000050b74656d706572617475726500000040000a0c6465736572745f68696c6c730508646f776e66616c6c00000000050b74656d706572617475726500000040000a0e6465736572745f6d7574617465640508646f776e66616c6c00000000050b74656d706572617475726500000040000a0d65787472656d655f68696c6c730508646f776e66616c6c9a99993e050b74656d7065726174757265cdcc4c3e000a1265787472656d655f68696c6c735f656467650508646f776e66616c6c9a99993e050b74656d7065726174757265cdcc4c3e000a1565787472656d655f68696c6c735f6d7574617465640508646f776e66616c6c9a99993e050b74656d7065726174757265cdcc4c3e000a1865787472656d655f68696c6c735f706c75735f74726565730508646f776e66616c6c9a99993e050b74656d7065726174757265cdcc4c3e000a2065787472656d655f68696c6c735f706c75735f74726565735f6d7574617465640508646f776e66616c6c9a99993e050b74656d7065726174757265cdcc4c3e000a0d666c6f7765725f666f726573740508646f776e66616c6ccdcc4c3f050b74656d70657261747572653333333f000a06666f726573740508646f776e66616c6ccdcc4c3f050b74656d70657261747572653333333f000a0c666f726573745f68696c6c730508646f776e66616c6ccdcc4c3f050b74656d70657261747572653333333f000a0c66726f7a656e5f6f6365616e0508646f776e66616c6c0000003f050b74656d706572617475726500000000000a0c66726f7a656e5f72697665720508646f776e66616c6c0000003f050b74656d706572617475726500000000000a0468656c6c0508646f776e66616c6c00000000050b74656d706572617475726500000040000a0d6963655f6d6f756e7461696e730508646f776e66616c6c0000003f050b74656d706572617475726500000000000a0a6963655f706c61696e730508646f776e66616c6c0000003f050b74656d706572617475726500000000000a116963655f706c61696e735f7370696b65730508646f776e66616c6c0000803f050b74656d706572617475726500000000000a066a756e676c650508646f776e66616c6c6666663f050b74656d70657261747572653333733f000a0b6a756e676c655f656467650508646f776e66616c6ccdcc4c3f050b74656d70657261747572653333733f000a136a756e676c655f656467655f6d7574617465640508646f776e66616c6ccdcc4c3f050b74656d70657261747572653333733f000a0c6a756e676c655f68696c6c730508646f776e66616c6c6666663f050b74656d70657261747572653333733f000a0e6a756e676c655f6d7574617465640508646f776e66616c6c6666663f050b74656d70657261747572653333733f000a136c65676163795f66726f7a656e5f6f6365616e0508646f776e66616c6c0000003f050b74656d706572617475726500000000000a0e6c756b657761726d5f6f6365616e0508646f776e66616c6c0000003f050b74656d70657261747572650000003f000a0a6d6567615f74616967610508646f776e66616c6ccdcc4c3f050b74656d70657261747572659a99993e000a106d6567615f74616967615f68696c6c730508646f776e66616c6ccdcc4c3f050b74656d70657261747572659a99993e000a046d6573610508646f776e66616c6c00000000050b74656d706572617475726500000040000a0a6d6573615f62727963650508646f776e66616c6c00000000050b74656d706572617475726500000040000a0c6d6573615f706c61746561750508646f776e66616c6c00000000050b74656d706572617475726500000040000a146d6573615f706c61746561755f6d7574617465640508646f776e66616c6c00000000050b74656d706572617475726500000040000a126d6573615f706c61746561755f73746f6e650508646f776e66616c6c00000000050b74656d706572617475726500000040000a1a6d6573615f706c61746561755f73746f6e655f6d7574617465640508646f776e66616c6c00000000050b74656d706572617475726500000040000a0f6d757368726f6f6d5f69736c616e640508646f776e66616c6c0000803f050b74656d70657261747572656666663f000a156d757368726f6f6d5f69736c616e645f73686f72650508646f776e66616c6c0000803f050b74656d70657261747572656666663f000a056f6365616e0508646f776e66616c6c0000003f050b74656d70657261747572650000003f000a06706c61696e730508646f776e66616c6ccdcccc3e050b74656d7065726174757265cdcc4c3f000a1b726564776f6f645f74616967615f68696c6c735f6d7574617465640508646f776e66616c6ccdcc4c3f050b74656d70657261747572659a99993e000a15726564776f6f645f74616967615f6d7574617465640508646f776e66616c6ccdcc4c3f050b74656d70657261747572650000803e000a0572697665720508646f776e66616c6c0000003f050b74656d70657261747572650000003f000a0d726f6f6665645f666f726573740508646f776e66616c6ccdcc4c3f050b74656d70657261747572653333333f000a15726f6f6665645f666f726573745f6d7574617465640508646f776e66616c6ccdcc4c3f050b74656d70657261747572653333333f000a07736176616e6e610508646f776e66616c6c00000000050b74656d70657261747572659a99993f000a0f736176616e6e615f6d7574617465640508646f776e66616c6c0000003f050b74656d7065726174757265cdcc8c3f000a0f736176616e6e615f706c61746561750508646f776e66616c6c00000000050b74656d70657261747572650000803f000a17736176616e6e615f706c61746561755f6d7574617465640508646f776e66616c6c0000003f050b74656d70657261747572650000803f000a0b73746f6e655f62656163680508646f776e66616c6c9a99993e050b74656d7065726174757265cdcc4c3e000a1073756e666c6f7765725f706c61696e730508646f776e66616c6ccdcccc3e050b74656d7065726174757265cdcc4c3f000a097377616d706c616e640508646f776e66616c6c0000003f050b74656d7065726174757265cdcc4c3f000a117377616d706c616e645f6d7574617465640508646f776e66616c6c0000003f050b74656d7065726174757265cdcc4c3f000a0574616967610508646f776e66616c6ccdcc4c3f050b74656d70657261747572650000803e000a0b74616967615f68696c6c730508646f776e66616c6ccdcc4c3f050b74656d70657261747572650000803e000a0d74616967615f6d7574617465640508646f776e66616c6ccdcc4c3f050b74656d70657261747572650000803e000a077468655f656e640508646f776e66616c6c0000003f050b74656d70657261747572650000003f000a0a7761726d5f6f6365616e0508646f776e66616c6c0000003f050b74656d70657261747572650000003f0000";
 		$pkBuf = hex2bin($test);
@@ -5171,7 +5185,6 @@ class Player extends Human implements CommandSender, InventoryHolder, IPlayer {
 		$isNeedSendXUID = $this->originalProtocol >= ProtocolInfo::PROTOCOL_140;
 		$playersWithProto140 = [];
 		$otherPlayers = [];
-		$players[] = $this;
 		$pk = new PlayerListPacket();
 		$pk->type = PlayerListPacket::TYPE_ADD;
 		foreach ($players as $player) {
@@ -5179,12 +5192,16 @@ class Player extends Human implements CommandSender, InventoryHolder, IPlayer {
 			if ($isNeedSendXUID) {
 				$entry[] = $player->getXUID();
 			}
+			$entry[9] = $player->getDeviceOS();
+			$entry[10] = $player->additionalSkinData;
 			$pk->entries[] = $entry;
 			// collect player with different packet logic
-			if ($player->getOriginalProtocol() >= ProtocolInfo::PROTOCOL_140) {
-				$playersWithProto140[] = $player;
-			} else {
-				$otherPlayers[] = $player;
+			if ($player !== $this) {
+				if ($player->getOriginalProtocol() >= ProtocolInfo::PROTOCOL_140) {
+					$playersWithProto140[] = $player;
+				} else {
+					$otherPlayers[] = $player;
+				}
 			}
 		}
 		$this->server->batchPackets([$this], [$pk]);
@@ -5192,7 +5209,7 @@ class Player extends Human implements CommandSender, InventoryHolder, IPlayer {
 		if (count($playersWithProto140) > 0) {
 			$pk = new PlayerListPacket();
 			$pk->type = PlayerListPacket::TYPE_ADD;
-			$pk->entries[] = [$this->getUniqueId(), $this->getId(), $this->getName(), $this->getSkinName(), $this->getSkinData(), $this->getCapeData(), $this->getSkinGeometryName(), $this->getSkinGeometryData(), $this->getXUID()];
+			$pk->entries[] = [$this->getUniqueId(), $this->getId(), $this->getName(), $this->getSkinName(), $this->getSkinData(), $this->getCapeData(), $this->getSkinGeometryName(), $this->getSkinGeometryData(), $this->getXUID(), $this->getDeviceOS(), $this->additionalSkinData];
 			$this->server->batchPackets($playersWithProto140, [$pk]);
 		}
 		if (count($otherPlayers) > 0) {
@@ -5327,7 +5344,7 @@ class Player extends Human implements CommandSender, InventoryHolder, IPlayer {
 			$buffer .= Binary::writeVarInt(strlen($pkBuf)) . $pkBuf;
 		}
 		$pk = new BatchPacket();
-		$pk->payload = zlib_encode($buffer, ZLIB_ENCODING_DEFLATE, 7);
+		$pk->payload = zlib_encode($buffer, self::getCompressAlg($this->originalProtocol), 7);
 		$this->dataPacket($pk);
 	}
 	
@@ -5419,4 +5436,11 @@ class Player extends Human implements CommandSender, InventoryHolder, IPlayer {
 			$this->dataPacket($pk);
 		}
 	}
+	public static function getCompressAlg($protocol) {		
+		if ((int)$protocol >= 406) {
+			return ZLIB_ENCODING_RAW;
+		}
+		return ZLIB_ENCODING_DEFLATE;
+	}
+
 }
