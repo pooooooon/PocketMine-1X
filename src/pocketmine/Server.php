@@ -2287,7 +2287,7 @@ class Server{
 			if (!isset($readyPackets[$protocol])) {
 				$pk->encode($protocol, $p->getSubClientId());
 				$batch = new BatchPacket();
-				$batch->payload = zlib_encode(Binary::writeVarInt(strlen($pk->getBuffer())) . $pk->getBuffer(), ZLIB_ENCODING_DEFLATE, 7);
+				$batch->payload = zlib_encode(Binary::writeVarInt(strlen($pk->getBuffer())) . $pk->getBuffer(), Player::getCompressAlg($protocol), 7);
 				$readyPackets[$protocol] = $batch;
 			}
 			$p->dataPacket($readyPackets[$protocol]);
@@ -2332,7 +2332,12 @@ class Server{
 			$pk->encode($p->getPlayerProtocol(), $p->getSubClientId());
 			$bpk = new BatchPacket();
 			$buffer = $pk->getBuffer();
-			$bpk->payload = zlib_encode(Binary::writeVarInt(strlen($buffer)) . $buffer, ZLIB_ENCODING_DEFLATE, 7);
+			var_dump("PROTOCOL: " . $p->getPlayerProtocol());
+            if ($p->getPlayerProtocol() >= Info::PROTOCOL_406) {
+			    $bpk->payload = zlib_encode(Binary::writeVarInt(strlen($buffer)) . $buffer, ZLIB_ENCODING_RAW, 7);
+            } else {
+			    $bpk->payload = zlib_encode(Binary::writeVarInt(strlen($buffer)) . $buffer, ZLIB_ENCODING_DEFLATE, 7);
+            }
 			$bpk->encode($p->getPlayerProtocol());
 			$this->craftList[$p->getPlayerProtocol()] = $bpk->getBuffer();
 		}
