@@ -197,6 +197,13 @@ class RakLibInterface implements ServerInstance, AdvancedSourceInterface{
 			$player->setPing($ping);
 		}
 	}
+	
+	public function handleKick($identifier, $reason){
+		if(isset($this->players[$identifier])){
+			$player = $this->players[$identifier];
+			$player->kick($reason);
+		}
+	}
 
 	public function blockAddress($address, $timeout = 300){
 		$this->interface->blockAddress($address, $timeout);
@@ -255,8 +262,13 @@ class RakLibInterface implements ServerInstance, AdvancedSourceInterface{
 		if (isset($this->identifiers[$player])) {
 			$pk = new EncapsulatedPacket();
 			$pk->buffer = $buffer;
-			$pk->reliability = 3;
-			$this->interface->sendEncapsulated($player->getIdentifier(), $pk,  RakLib::PRIORITY_NORMAL | RakLib::FLAG_NEED_ZLIB);
+			$pk->reliability = 3;			
+			if ($player->getOriginalProtocol() >= Info::PROTOCOL_406) {
+				$flag = RakLib::FLAG_NEED_ZLIB_RAW;
+			} else {
+				$flag = RakLib::FLAG_NEED_ZLIB;
+			}
+			$this->interface->sendEncapsulated($player->getIdentifier(), $pk,  RakLib::PRIORITY_NORMAL | $flag);
 		}
 	}
 	
