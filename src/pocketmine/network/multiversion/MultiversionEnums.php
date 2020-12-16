@@ -555,6 +555,19 @@ abstract class MultiversionEnums {
 			case Info::PROTOCOL_120:
 			case Info::PROTOCOL_200:
 				return self::GROUP_2;
+			case Info::PROTOCOL_419:
+			case Info::PROTOCOL_409:
+			case Info::PROTOCOL_408:
+			case Info::PROTOCOL_407:
+			case Info::PROTOCOL_406:
+		    case Info::PROTOCOL_400:
+			case Info::PROTOCOL_393:
+			case Info::PROTOCOL_392:
+			case Info::PROTOCOL_390:
+			case Info::PROTOCOL_389:
+			case Info::PROTOCOL_386:
+			case Info::PROTOCOL_385:
+			case Info::PROTOCOL_370:
 			case Info::PROTOCOL_361:
 			case Info::PROTOCOL_360:
 			case Info::PROTOCOL_354:
@@ -629,6 +642,8 @@ abstract class MultiversionEnums {
 		switch ($protocol) {
 			case Info::PROTOCOL_110:
 				return self::GROUP_1;
+			case Info::PROTOCOL_419:
+			case Info::PROTOCOL_409:
 			case Info::PROTOCOL_408:
 			case Info::PROTOCOL_407:
 			case Info::PROTOCOL_406:
@@ -697,7 +712,8 @@ abstract class MultiversionEnums {
 			21 => 'START_SWIMMING',
 			22 => 'STOP_SWIMMING',
 			23 => 'START_SPIN_ATTACK',
-			24 => 'STOP_SPIN_ATTACK'
+			24 => 'STOP_SPIN_ATTACK',
+			25 => 'INTERACT_WITH_BLOCK',
 		],
 		self::GROUP_1 => [
 			-1 => 'UNKNOWN',
@@ -745,6 +761,8 @@ abstract class MultiversionEnums {
 		switch ($protocol) {
 			case Info::PROTOCOL_110:
 				return self::GROUP_1;
+			case Info::PROTOCOL_419:
+			case Info::PROTOCOL_409:
 			case Info::PROTOCOL_408:
 			case Info::PROTOCOL_407:
 			case Info::PROTOCOL_406:
