@@ -25,7 +25,7 @@ namespace pocketmine\network\protocol;
 
 
 class RemoveBlockPacket extends PEPacket{
-	const NETWORK_ID = Info::REMOVE_BLOCK_PACKET;
+	const NETWORK_ID = Info110::REMOVE_BLOCK_PACKET;
 	const PACKET_NAME = "REMOVE_BLOCK_PACKET";
 
 	public $eid;

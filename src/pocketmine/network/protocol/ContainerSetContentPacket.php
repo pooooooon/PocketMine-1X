@@ -25,7 +25,7 @@ namespace pocketmine\network\protocol;
 
 
 class ContainerSetContentPacket extends PEPacket{
-	const NETWORK_ID = Info::CONTAINER_SET_CONTENT_PACKET;
+	const NETWORK_ID = Info110::CONTAINER_SET_CONTENT_PACKET;
 	const PACKET_NAME = "CONTAINER_SET_CONTENT_PACKET";
 
 	const SPECIAL_INVENTORY = 0;

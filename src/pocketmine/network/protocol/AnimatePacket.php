@@ -46,7 +46,6 @@ class AnimatePacket extends PEPacket{
 		} else {
 			$this->action = $this->getVarInt();
 		}
-	
 		$this->eid = $this->getVarInt();
 	}
 

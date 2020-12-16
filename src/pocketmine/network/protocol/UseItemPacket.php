@@ -25,7 +25,7 @@ namespace pocketmine\network\protocol;
 
 
 class UseItemPacket extends PEPacket{
-	const NETWORK_ID = Info::USE_ITEM_PACKET;
+	const NETWORK_ID = Info110::USE_ITEM_PACKET;
 	const PACKET_NAME = "USE_ITEM_PACKET";
 
 	public $x;

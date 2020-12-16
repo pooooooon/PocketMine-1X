@@ -2,6 +2,7 @@
 
 namespace pocketmine\network\protocol;
 
+use pocketmine\item\Item;
 use pocketmine\network\protocol\DataPacket;
 use pocketmine\network\protocol\Info;
 use pocketmine\network\multiversion\BlockPallet;
@@ -29,7 +30,7 @@ abstract class PEPacket extends DataPacket {
 			$subclientIds = $header >> 10;
 			$this->senderSubClientID = $subclientIds & 0x03;
 			$this->targetSubClientID = ($subclientIds >> 2) & 0x03;
-		} else if ($playerProtocol >= Info::PROTOCOL_120) {
+		} elseif ($playerProtocol >= Info::PROTOCOL_120) {
 			$this->getByte(); // packetID
 			$this->senderSubClientID = $this->getByte();
 			$this->targetSubClientID = $this->getByte();
@@ -63,6 +64,10 @@ abstract class PEPacket extends DataPacket {
 	
 	public final static function convertProtocol($protocol) {
 		switch ($protocol) {
+			case Info::PROTOCOL_422:
+			case Info::PROTOCOL_419:
+				return Info::PROTOCOL_419;
+			case Info::PROTOCOL_409:
 			case Info::PROTOCOL_408:
 			case Info::PROTOCOL_407:
 				return Info::PROTOCOL_407;
@@ -86,7 +91,7 @@ abstract class PEPacket extends DataPacket {
 			case Info::PROTOCOL_386:
 				return Info::PROTOCOL_386;
 			case Info::PROTOCOL_385:
-			    return Info::PROTOCOL_385;
+				return Info::PROTOCOL_385;
 			case Info::PROTOCOL_371:
 			case Info::PROTOCOL_370:
 				return Info::PROTOCOL_370;
@@ -177,9 +182,23 @@ abstract class PEPacket extends DataPacket {
 	
 	public static function getBlockRuntimeID($id, $meta, $playerProtocol) {
 		$pallet = self::getPallet($playerProtocol);
+		if ($playerProtocol == Info::PROTOCOL_419) {
+			$meta = self::getActualMeta($id, $meta);
+		}
 		return is_null($pallet) ? 0 : $pallet->getBlockRuntimeIDByData($id, $meta);
 	}
 	
+	private static function getActualMeta($id, $meta) {
+		if ($id == Item::ITEM_FRAME_BLOCK) {
+			$array = [3 => 8, 4 => 5, 5 => 4];
+			return $array[$meta]??$meta;
+		}
+		if ($id == Item::LEAVE2 && $meta > 7) {			
+			return 7;
+		}
+		return $meta;
+	}
+
 	public static function getBlockPalletData($playerProtocol) {
 		$pallet = self::getPallet($playerProtocol);
 		return is_null($pallet) ? "" : $pallet->getDataForPackets();

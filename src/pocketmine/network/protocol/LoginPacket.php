@@ -164,7 +164,6 @@ class LoginPacket extends PEPacket {
 		} else {
 			$this->playerData = self::load($this->playerData);
 		}
-
 		$this->username = $this->chains['data'][$dataIndex]['extraData']['displayName'];
 		$this->clientId = $this->chains['data'][$dataIndex]['extraData']['identity'];
 		$this->clientUUID = UUID::fromString($this->chains['data'][$dataIndex]['extraData']['identity']);
@@ -210,7 +209,7 @@ class LoginPacket extends PEPacket {
 			$this->platformChatId = $this->playerData["PlatformOnlineId"];
 		}
 		$this->originalProtocol = $this->protocol1;
-		$this->protocol1 = self::convertProtocol($this->protocol1);
+		$this->protocol1 = self::convertProtocol($this->protocol1);		
 		$additionalSkinDataList = [
 			'AnimatedImageData', 'CapeId', 'CapeImageHeight', 'CapeImageWidth', 'CapeOnClassicSkin', 'PersonaSkin', 'PremiumSkin', 'SkinAnimationData', 'SkinImageHeight', 'SkinImageWidth', 'SkinResourcePatch'	
 		];

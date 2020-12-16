@@ -73,7 +73,7 @@ class MovePlayerPacket extends PEPacket{
 		$this->putLFloat($this->x);
 		$this->putLFloat($this->y);
 		$this->putLFloat($this->z);
-
+	
 		$this->putLFloat($this->pitch);
 		$this->putLFloat($this->yaw);
 
@@ -85,6 +85,9 @@ class MovePlayerPacket extends PEPacket{
 		if (self::MODE_TELEPORT == $this->mode) {
 			$this->putInt(self::TELEPORTATION_CAUSE_UNKNOWN);
 			$this->putInt(1);
+		}
+		if($playerProtocol >= Info::PROTOCOL_411){
+			$this->putVarInt(0); // which tick from PlayerAuthInputPacket its on //unsigned varint64
 		}
 	}
 

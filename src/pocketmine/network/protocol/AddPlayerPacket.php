@@ -26,6 +26,7 @@ namespace pocketmine\network\protocol;
 #ifndef COMPILE
 use pocketmine\utils\Binary;
 use pocketmine\entity\Entity;
+use pocketmine\Player;
 
 #endif
 
@@ -52,6 +53,7 @@ class AddPlayerPacket extends PEPacket{
 	public $actionPermissions = AdventureSettingsPacket::ACTION_FLAG_DEFAULT_LEVEL_PERMISSIONS;
 	public $permissionLevel = AdventureSettingsPacket::PERMISSION_LEVEL_MEMBER;
 	public $storedCustomPermissions = 0;
+	public $buildPlatform = Player::OS_UNKNOWN;
 
 	public function decode($playerProtocol){
 
@@ -109,9 +111,10 @@ class AddPlayerPacket extends PEPacket{
 				$this->putByte($link['type']);
 				$this->putByte(0);
 				if ($playerProtocol >= Info::PROTOCOL_406) {
-					$this->putByte(0);//whether the link was changes by the rider
-				}
+				$this->putByte(0);//whether the link was changes by the rider
+			    }			
 			}
+			
 		}
 		if ($playerProtocol >= Info::PROTOCOL_282) {
 			$this->putString($this->uuid->toString());

@@ -73,7 +73,7 @@ class MapItemDataPacket extends PEPacket {
 						$this->putByte($pointner['rotate']);
 					} else {
 						$this->putSignedVarInt($pointner['type'] << 4 | $pointner['rotate']);
-					}
+					}			
 					if ($pointner['x'] > 0x7f) {
 						$pointner['x'] = 0x7f;
 					}
