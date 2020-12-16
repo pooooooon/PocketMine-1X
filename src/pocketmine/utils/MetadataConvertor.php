@@ -60,6 +60,7 @@ class MetadataConvertor {
 		'DATA_FLAG_CAN_POWER_JUMP' => 44,
 		'DATA_FLAG_HAS_COLLISION' => 46,
 		'DATA_FLAG_AFFECTED_BY_GRAVITY' => 47,
+		'DATA_FLAG_FIRE_IMMUNE' => 48,
 	];
 	private static $diffEntityFlags290 = [
 		'DATA_FLAG_RESTING_BAT' => 23,
@@ -80,12 +81,13 @@ class MetadataConvertor {
 		'DATA_FLAG_CAN_POWER_JUMP' => 45,
 		'DATA_FLAG_HAS_COLLISION' => 47,
 		'DATA_FLAG_AFFECTED_BY_GRAVITY' => 48,
+		'DATA_FLAG_FIRE_IMMUNE' => 49,
 	];
 	private static $entityFlags110 = [];
 	private static $entityFlags120 = [];
 	private static $entityFlags221 = [];
 	private static $entityFlags290 = [];
-	
+
 	private static $diffEntityMetaIds110 = [
 		'DATA_MAX_AIR' => 43,
 	];
@@ -196,13 +198,13 @@ class MetadataConvertor {
 				self::$entityFlags290[self::$initialMeta[$key]] = $value;
 			}
 		}
-		
+
 		foreach (self::$diffEntityMetaIds110 as $key => $value) {
 			if (isset(self::$initialMeta[$key])) {
 				self::$entityMetaIds110[self::$initialMeta[$key]] = $value;
 			}
 		}
-		
+
 		foreach (self::$diffEntityMetaIds120 as $key => $value) {
 			if (isset(self::$initialMeta[$key])) {
 				self::$entityMetaIds120[self::$initialMeta[$key]] = $value;
@@ -248,6 +250,12 @@ class MetadataConvertor {
 
 	private static function updateMetaIds($meta, $protocol) {
 		switch ($protocol) {
+			case Info::PROTOCOL_419;
+			case Info::PROTOCOL_413:
+			case Info::PROTOCOL_412:
+			case Info::PROTOCOL_411:
+			case Info::PROTOCOL_410:
+			case Info::PROTOCOL_409:
 			case Info::PROTOCOL_408:
 			case Info::PROTOCOL_407:
 			case Info::PROTOCOL_406:
@@ -296,6 +304,9 @@ class MetadataConvertor {
 				$protocolMeta = self::$entityMetaIds120;
 				break;
 			case Info::PROTOCOL_110:
+			case Info::PROTOCOL_111:
+			case Info::PROTOCOL_112:
+			case Info::PROTOCOL_113:
 				$protocolMeta = self::$entityMetaIds110;
 				break;
 			default:
@@ -317,6 +328,12 @@ class MetadataConvertor {
 			return $meta;
 		}
 		switch ($protocol) {
+			case Info::PROTOCOL_419;
+			case Info::PROTOCOL_413:
+			case Info::PROTOCOL_412:
+			case Info::PROTOCOL_411:
+			case Info::PROTOCOL_410:
+			case Info::PROTOCOL_409:
 			case Info::PROTOCOL_408:
 			case Info::PROTOCOL_407:
 			case Info::PROTOCOL_406:
@@ -326,7 +343,7 @@ class MetadataConvertor {
 			case Info::PROTOCOL_390:
 			case Info::PROTOCOL_389:
 			case Info::PROTOCOL_386:
-			case Info::PROTOCOL_385:
+		    case Info::PROTOCOL_385:
 			case Info::PROTOCOL_370:
 			case Info::PROTOCOL_361:
 			case Info::PROTOCOL_360:
@@ -362,6 +379,9 @@ class MetadataConvertor {
 				$protocolFlags = self::$entityFlags120;
 				break;
 			case Info::PROTOCOL_110:
+			case Info::PROTOCOL_111:
+			case Info::PROTOCOL_112:
+			case Info::PROTOCOL_113:
 				$newflags = 1 << 19; //DATA_FLAG_CAN_CLIMBING
 				$protocolFlags = self::$entityFlags110;
 				break;
