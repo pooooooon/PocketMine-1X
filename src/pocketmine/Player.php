@@ -184,6 +184,8 @@ use pocketmine\network\protocol\v331\BiomeDefinitionListPacket;
 use pocketmine\network\protocol\v310\AvailableEntityIdentifiersPacket;
 use pocketmine\network\protocol\v392\CreativeItemsListPacket;
 use pocketmine\network\protocol\v120\InventoryContentPacket;
+use pocketmine\network\protocol\CreativeContentPacket;
+use pocketmine\network\protocol\ItemComponentPacket;
 
 /**
  * Main class that handles networking, recovery, and packet sending to the server part
@@ -278,7 +280,7 @@ class Player extends Human implements CommandSender, InventoryHolder, IPlayer {
 	protected $iusername = '';
 	protected $displayName = '';
 	protected $startAction = -1;
-	public $protocol = ProtocolInfo::PROTOCOL_110;
+	public $protocol = ProtocolInfo::PROTOCOL_92;
 	/** @var Vector3 */
 	protected $sleeping = null;
 	protected $clientID = null;
@@ -955,7 +957,10 @@ class Player extends Human implements CommandSender, InventoryHolder, IPlayer {
 		if($this->connected === false){
 			return false;
 		}
-		
+		$pks = ['INVENTORY_CONTENT_PACKET', 'INVENTORY_SLOT_PACKET'];
+		// if (in_array($packet->pname(), $pks)) {
+		// 	return;
+		// }
 		if ($this->subClientId > 0 && $this->parent != null) {
 			$packet->senderSubClientID = $this->subClientId;
 			return $this->parent->dataPacket($packet);
@@ -1721,6 +1726,7 @@ class Player extends Human implements CommandSender, InventoryHolder, IPlayer {
 		if($this->connected === false){
 			return;
 		}
+		
 		$beforeLoginAvailablePackets = ['LOGIN_PACKET', 'REQUEST_CHUNK_RADIUS_PACKET', 'RESOURCE_PACKS_CLIENT_RESPONSE_PACKET', 'CLIENT_TO_SERVER_HANDSHAKE_PACKET', 'RESOURCE_PACK_CHUNK_REQUEST_PACKET'];
 		if (!$this->isOnline() && !in_array($packet->pname(), $beforeLoginAvailablePackets)) {
 			return;
@@ -1773,9 +1779,9 @@ class Player extends Human implements CommandSender, InventoryHolder, IPlayer {
 					break;
 				}
 				if (!$packet->isVerified) {
-					$this->close("", "Invalid Identity Public Key");
+					//$this->close("", "Invalid Identity Public Key");
 					// error_log("Invalid Identity Public Key " . $packet->username);
-					break;
+					//break;
 				}
 				$this->inventory = Multiversion::getPlayerInventory($this);				
 				$this->username = TextFormat::clean($packet->username);
@@ -1794,6 +1800,7 @@ class Player extends Human implements CommandSender, InventoryHolder, IPlayer {
 				}
 				$this->rawUUID = $this->uuid->toBinary();
 				$this->clientSecret = $packet->clientSecret;
+				$this->checkSkinGeometry($packet->skinGeometryName, $packet->additionalSkinData);
 				$this->setSkin($packet->skin, $packet->skinName, $packet->skinGeometryName, $packet->skinGeometryData, $packet->capeData, $packet->premiunSkin);
                 if ($packet->osType > 0) {
                     $this->deviceType = $packet->osType;
@@ -2055,6 +2062,12 @@ class Player extends Human implements CommandSender, InventoryHolder, IPlayer {
 					case 'CRACK_BLOCK':
 						$this->crackBlock($packet);
 						break;
+					case 'CHANGE_DIMENSION_ACK':
+						$this->onDimensionChanged();
+						break;
+					case 'INTERACT_WITH_BLOCK':
+						//TODO:
+						break;
 				}
 				
 				$this->setDataFlag(self::DATA_FLAGS, self::DATA_FLAG_ACTION, false);
@@ -2072,7 +2085,7 @@ class Player extends Human implements CommandSender, InventoryHolder, IPlayer {
 					$this->addWindow($this->getInventory());
 				} elseif ($packet->action === InteractPacket::ACTION_DAMAGE) {
 					$this->attackByTargetId($packet->target);
-				} else {
+				} elseif($packet->action === InteractPacket::ACTION_INTERACT_UPDATE){
 					$this->customInteract($packet);
 				}
 				break;
@@ -2306,7 +2319,7 @@ class Player extends Human implements CommandSender, InventoryHolder, IPlayer {
 						}
 					} catch (\Exception $e) {
 						$pk = new ContainerClosePacket();
-						$pk->windowid = ContainerSetContentPacket::SPECIAL_INVENTORY;
+						$pk->windowid = Protocol120::CONTAINER_ID_INVENTORY;
 						$this->dataPacket($pk);
 						$this->lastQuickCraftTransactionGroup = [];
 					}
@@ -3526,15 +3539,27 @@ class Player extends Human implements CommandSender, InventoryHolder, IPlayer {
 		$pk->stringClientVersion = $this->clientVersion;
 		$pk->multiplayerCorrelationId = $this->uuid->toString();
 		$this->directDataPacket($pk);	
-		if ($this->protocol >= ProtocolInfo::PROTOCOL_331) {
-			$this->directDataPacket(new AvailableEntityIdentifiersPacket());
-			$this->directDataPacket(new BiomeDefinitionListPacket());
-		}
+		if ($this->protocol >= ProtocolInfo::PROTOCOL_413) {
+            $this->directDataPacket(new ItemComponentPacket());
+        }
+        if ($this->protocol >= ProtocolInfo::PROTOCOL_331) {
+            $this->directDataPacket(new BiomeDefinitionListPacket());
+            $this->directDataPacket(new AvailableEntityIdentifiersPacket());
+        }
+        if ($this->getPlayerProtocol() >= Info::PROTOCOL_392) {
+            $pk = new CreativeContentPacket();
+            $pk->groups = Item::getCreativeGroups();
+            $pk->items = Item::getCreativeItems();
+            $this->directDataPacket($pk);
+        } else {
+            $slots = [];
+            foreach(Item::getCreativeItems() as $item){
+                $slots[] = clone $item['item'];
+            }
+            Multiversion::sendContainer($this, Protocol120::CONTAINER_ID_CREATIVE, $slots);
+        }
 
-		$pk = new SetTimePacket();
-		$pk->time = $this->level->getTime();
-		$pk->started = true;
-		$this->dataPacket($pk);
+		$this->server->sendRecipeList($this);
 
 		if ($this->getHealth() <= 0) {
 			$this->dead = true;
@@ -3547,23 +3572,12 @@ class Player extends Human implements CommandSender, InventoryHolder, IPlayer {
 		if($this->getHealth() <= 0){
 			$this->dead = true;
 		}
-
-		$this->server->getLogger()->info(TextFormat::AQUA . $this->username . TextFormat::WHITE . "/" . TextFormat::AQUA . $this->ip . " connected");
-
-		if ($this->getPlayerProtocol() >= Info::PROTOCOL_392) {
-			$pk = new CreativeItemsListPacket();
-			$pk->groups = Item::getCreativeGroups();
-			$pk->items = Item::getCreativeItems();
-			$this->dataPacket($pk);			
-		} else {
-			$slots = [];
-			foreach(Item::getCreativeItems() as $item){
-				$slots[] = clone $item['item'];
-			}
-			Multiversion::sendContainer($this, Protocol120::CONTAINER_ID_CREATIVE, $slots);
-	    }
+		$pk = new SetTimePacket();
+        $pk->time = $this->level->getTime();
+        $pk->started = true;
+		$this->dataPacket($pk);
 		
-		$this->server->sendRecipeList($this);
+		$this->server->getLogger()->info(TextFormat::AQUA . $this->username . TextFormat::WHITE . "/" . TextFormat::AQUA . $this->ip . " connected");
 
 		$this->sendSelfData();				
 		$this->updateSpeed($this->movementSpeed);
@@ -3890,6 +3904,27 @@ class Player extends Human implements CommandSender, InventoryHolder, IPlayer {
     }
 	
 	public function setTitle($text, $subtext = '', $time = 36000) {		
+		if ($this->protocol >= Info::PROTOCOL_105 ) {		
+			$pk = new SetTitlePacket();
+			$pk->type = SetTitlePacket::TITLE_TYPE_TIMES;
+			$pk->text = "";
+			$pk->fadeInTime = 5;
+			$pk->fadeOutTime = 5;
+			$pk->stayTime = 20 * $time;
+			$this->dataPacket($pk);
+			
+			if (!empty($subtext)) {
+				$pk = new SetTitlePacket();
+				$pk->type = SetTitlePacket::TITLE_TYPE_SUBTITLE;
+				$pk->text = $subtext;
+				$this->dataPacket($pk);
+			}
+			
+			$pk = new SetTitlePacket();
+			$pk->type = SetTitlePacket::TITLE_TYPE_TITLE;
+			$pk->text = $text;
+			$this->dataPacket($pk);	
+		}
 		if ($this->protocol >= Info::PROTOCOL_290) { //hack for 1.7.x
 			$this->clearTitle();
 			$this->titleData = ['text' => !empty($text) ? $text : ' ', 'subtext' => $subtext, 'time' => $time, 'holdTickCount' => 5];
@@ -5037,7 +5072,7 @@ class Player extends Human implements CommandSender, InventoryHolder, IPlayer {
 
 		$pk3 = new PlayerListPacket();
 		$pk3->type = PlayerListPacket::TYPE_ADD;
-		$pk3->entries[] = [$this->getUniqueId(), $this->getId(), $this->getName(), $this->skinName, $this->skin, $this->capeData, $this->skinGeometryName, $this->skinGeometryData];
+		$pk3->entries[] = [$this->getUniqueId(), $this->getId(), $this->getName(), $this->skinName, $this->skin, $this->capeData, $this->skinGeometryName, $this->skinGeometryData, $this->additionalSkinData];
 
 		$pk4 = new AddPlayerPacket();
 		$pk4->uuid = $this->getUniqueId();
@@ -5436,11 +5471,58 @@ class Player extends Human implements CommandSender, InventoryHolder, IPlayer {
 			$this->dataPacket($pk);
 		}
 	}
+
+	protected function updateFallState($distanceThisTick, $onGround) {
+		if ($onGround || !$this->allowFlight && !$this->elytraIsActivated) {
+			parent::updateFallState($distanceThisTick, $onGround);
+		}
+	}
+	
+	protected function sendAllInventories(){
+		if (!is_null($this->currentWindow)) {
+			$this->currentWindow->sendContents($this);
+		}
+		$this->getInventory()->sendContents($this);
+	}
+
+	public function getAdditionalSkinData() {
+		return $this->additionalSkinData;
+	}
+
+	protected function checkSkinGeometry(&$skinGeometryName, $additionalSkinData) {
+		if (empty($skinGeometryName) && !empty($additionalSkinData['SkinResourcePatch'])) {
+			if (($jsonSkinData = @json_decode($additionalSkinData['SkinResourcePatch'], true)) && isset($jsonSkinData['geometry']['default'])) {
+				$skinGeometryName = $jsonSkinData['geometry']['default'];
+			}
+		}
+	}
+
 	public static function getCompressAlg($protocol) {		
 		if ((int)$protocol >= 406) {
 			return ZLIB_ENCODING_RAW;
 		}
 		return ZLIB_ENCODING_DEFLATE;
 	}
-
+	
+	public function move($dx, $dy, $dz) {
+		if ($dx == 0 && $dz == 0 && $dy == 0) {
+			return true;
+		}
+		$pos = new Vector3($this->x + $dx, $this->y + $dy, $this->z + $dz);
+		if ($this->setPosition($pos)) {
+			$bb = clone $this->boundingBox;
+			$bb->expand(0.1, 0, 0.1);
+			$bb->maxY = $bb->minY + 0.5;
+			$bb->minY -= 0.5;
+			if (count($this->level->getCollisionBlocks($bb)) > 0) {
+				$this->onGround = true;
+			} else {
+				$this->onGround = false;
+			}
+			$this->isCollided = $this->onGround;
+			$this->updateFallState($dy, $this->onGround);
+			return true;
+		}
+		return false;
+	}
 }
